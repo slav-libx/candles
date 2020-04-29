@@ -6,7 +6,8 @@ uses
   System.SysUtils, System.Types, System.UITypes, System.UIConsts, System.Classes,
   System.Variants, System.Math, FMX.Types, FMX.Controls, FMX.Forms, FMX.Graphics,
   FMX.Dialogs, FMX.Controls.Presentation, FMX.StdCtrls, FMX.Layouts,
-  Charts.Math, Charts.Controls, Chart.Candles, Chart.Measures;
+  Charts.Math, Charts.Controls, Chart.Candles, Chart.Measures, FMX.Objects,
+  Frame.CandleSummary;
 
 type
 
@@ -19,8 +20,10 @@ type
       const ARect: TRectF);
   private
     Chart: TCandleChart;
+    Summary: TCandleSummaryFrame;
     procedure CreateData;
-    procedure OnCandleClick(Sender: TObject; const Candle: TCandle);
+    procedure OnCandleSelect(Sender: TObject; const Candle: TCandle);
+    procedure OnCandleDeselect(Sender: TObject);
   public
   end;
 
@@ -76,10 +79,13 @@ end;
 procedure TForm1.FormCreate(Sender: TObject);
 begin
 
+  Summary:=TCandleSummaryFrame.Create(Self);
+
   Chart:=TCandleChart.Create(Self);
   Chart.Align:=TAlignLayout.Client;
   Chart.Parent:=Layout1;
-  Chart.OnCandleClick:=OnCandleClick;
+  Chart.OnCandleSelect:=OnCandleSelect;
+  Chart.OnCandleDeselect:=OnCandleDeselect;
 
   CreateData;
 
@@ -126,18 +132,18 @@ begin
 
 end;
 
-function AmountToStr(Amount: Extended): string;
+procedure TForm1.OnCandleSelect(Sender: TObject; const Candle: TCandle);
+var R: TRectF;
 begin
-  Result:=FormatFloat('0.00###',Amount);
+  R:=Chart.GetCandleRect(Candle,False);
+  R.NormalizeRect;
+  Summary.SetValues(Candle.Open,Candle.Close,Candle.Max,Candle.Min,0);
+  Summary.Show(Chart,R);
 end;
 
-procedure TForm1.OnCandleClick(Sender: TObject; const Candle: TCandle);
+procedure TForm1.OnCandleDeselect(Sender: TObject);
 begin
-  ShowMessage(
-    'Open: '+AmountToStr(Candle.Open)+#10+
-    'Close: '+AmountToStr(Candle.Close)+#10+
-    'Max: '+AmountToStr(Candle.Max)+#10+
-    'Min: '+AmountToStr(Candle.Min));
+  Summary.Hide;
 end;
 
 procedure TForm1.Button1Click(Sender: TObject);

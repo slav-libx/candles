@@ -1,0 +1,146 @@
+object CandleSummaryFrame: TCandleSummaryFrame
+  Size.Width = 96.000000000000000000
+  Size.Height = 96.000000000000000000
+  Size.PlatformDefault = False
+  OnClick = FrameClick
+  object Rectangle1: TRectangle
+    Align = Contents
+    Fill.Color = claGold
+    HitTest = False
+    Size.Width = 96.000000000000000000
+    Size.Height = 96.000000000000000000
+    Size.PlatformDefault = False
+    Stroke.Kind = None
+    Stroke.Thickness = 0.000000000000000000
+    object Text1: TText
+      HitTest = False
+      Position.X = 8.000000000000000000
+      Position.Y = 8.000000000000000000
+      Size.Width = 32.000000000000000000
+      Size.Height = 17.000000000000000000
+      Size.PlatformDefault = False
+      Text = 'Open:'
+      TextSettings.Font.Family = 'Lucida Grande'
+      TextSettings.Font.Size = 8.000000000000000000
+      TextSettings.HorzAlign = Leading
+    end
+    object Text2: TText
+      HitTest = False
+      Position.X = 8.000000000000000000
+      Position.Y = 24.000000000000000000
+      Size.Width = 32.000000000000000000
+      Size.Height = 17.000000000000000000
+      Size.PlatformDefault = False
+      Text = 'Close:'
+      TextSettings.Font.Family = 'Lucida Grande'
+      TextSettings.Font.Size = 8.000000000000000000
+      TextSettings.HorzAlign = Leading
+    end
+    object Text3: TText
+      HitTest = False
+      Position.X = 8.000000000000000000
+      Position.Y = 40.000000000000000000
+      Size.Width = 32.000000000000000000
+      Size.Height = 17.000000000000000000
+      Size.PlatformDefault = False
+      Text = 'Max:'
+      TextSettings.Font.Family = 'Lucida Grande'
+      TextSettings.Font.Size = 8.000000000000000000
+      TextSettings.HorzAlign = Leading
+    end
+    object Text4: TText
+      HitTest = False
+      Position.X = 8.000000000000000000
+      Position.Y = 56.000000000000000000
+      Size.Width = 32.000000000000000000
+      Size.Height = 17.000000000000000000
+      Size.PlatformDefault = False
+      Text = 'Min:'
+      TextSettings.Font.Family = 'Lucida Grande'
+      TextSettings.Font.Size = 8.000000000000000000
+      TextSettings.HorzAlign = Leading
+    end
+    object Text5: TText
+      HitTest = False
+      Position.X = 41.000000000000000000
+      Position.Y = 24.000000000000000000
+      Size.Width = 54.000000000000000000
+      Size.Height = 17.000000000000000000
+      Size.PlatformDefault = False
+      Text = 'Close:'
+      TextSettings.Font.Family = 'Lucida Grande'
+      TextSettings.Font.Size = 8.000000000000000000
+      TextSettings.HorzAlign = Leading
+    end
+    object Text6: TText
+      HitTest = False
+      Position.X = 41.000000000000000000
+      Position.Y = 40.000000000000000000
+      Size.Width = 54.000000000000000000
+      Size.Height = 17.000000000000000000
+      Size.PlatformDefault = False
+      Text = 'Max:'
+      TextSettings.Font.Family = 'Lucida Grande'
+      TextSettings.Font.Size = 8.000000000000000000
+      TextSettings.HorzAlign = Leading
+    end
+    object Text7: TText
+      HitTest = False
+      Position.X = 41.000000000000000000
+      Position.Y = 56.000000000000000000
+      Size.Width = 54.000000000000000000
+      Size.Height = 17.000000000000000000
+      Size.PlatformDefault = False
+      Text = 'Min:'
+      TextSettings.Font.Family = 'Lucida Grande'
+      TextSettings.Font.Size = 8.000000000000000000
+      TextSettings.HorzAlign = Leading
+    end
+    object Text8: TText
+      HitTest = False
+      Position.X = 41.000000000000000000
+      Position.Y = 8.000000000000000000
+      Size.Width = 54.000000000000000000
+      Size.Height = 17.000000000000000000
+      Size.PlatformDefault = False
+      Text = 'Open:'
+      TextSettings.Font.Family = 'Lucida Grande'
+      TextSettings.Font.Size = 8.000000000000000000
+      TextSettings.HorzAlign = Leading
+    end
+    object Text10: TText
+      HitTest = False
+      Position.X = 8.000000000000000000
+      Position.Y = 72.000000000000000000
+      Size.Width = 32.000000000000000000
+      Size.Height = 17.000000000000000000
+      Size.PlatformDefault = False
+      Text = 'Volume:'
+      TextSettings.Font.Family = 'Lucida Grande'
+      TextSettings.Font.Size = 8.000000000000000000
+      TextSettings.HorzAlign = Leading
+    end
+    object Text9: TText
+      HitTest = False
+      Position.X = 41.000000000000000000
+      Position.Y = 72.000000000000000000
+      Size.Width = 54.000000000000000000
+      Size.Height = 17.000000000000000000
+      Size.PlatformDefault = False
+      Text = 'Volume:'
+      TextSettings.Font.Family = 'Lucida Grande'
+      TextSettings.Font.Size = 8.000000000000000000
+      TextSettings.HorzAlign = Leading
+    end
+  end
+  object FloatAnimation1: TFloatAnimation
+    Duration = 0.200000002980232200
+    OnFinish = FloatAnimation1Finish
+    PropertyName = 'Opacity'
+    StartValue = 0.000000000000000000
+    StartFromCurrent = True
+    StopValue = 1.000000000000000000
+    Trigger = 'IsVisible=true'
+    TriggerInverse = 'IsVisible=false'
+  end
+end

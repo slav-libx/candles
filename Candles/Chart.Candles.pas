@@ -29,22 +29,29 @@ type
     FElapsed: Int64;
     FDuration: Int64;
     FDurationMin: Int64;
-    procedure DrawCandle(Canvas: TCanvas; const Candle: TCandle; const DRect,VRect: TRectF);
+    procedure DrawCandle(Canvas: TCanvas; const Candle: TCandle; const DRect,VRect: TRectF;
+      IsSelected: Boolean);
     procedure CalcRanges;
     procedure SetElapsed(Value: Int64);
     function GetElapsedMax: Int64;
     function GetElapsedMin: Int64;
     procedure SetDuration(const Value: Int64);
     function GetDurationMax: Int64;
+    function GetRect: TRectF;
   public
     Data: TCandles;
     Area: TRectF;
     IndexMin: Integer;
     IndexMax: Integer;
+    SelectedIndex: Integer;
     BullColor: TAlphaColor;
     BearColor: TAlphaColor;
+    SelectedColor: TAlphaColor;
     procedure DrawTo(Canvas: TCanvas; const ARect: TRectF);
     procedure SetData(const Candles: TCandles);
+    function Get(const P: TPointF): Integer;
+    function GetCandleSourceRect(const Candle: TCandle; BodyOnly: Boolean): TRectF;
+    function GetCandleRect(const Candle: TCandle; const ARect: TRectF; BodyOnly: Boolean=True): TRectF;
     property Elapsed: Int64 read FElapsed write SetElapsed;
     property ElapsedMax: Int64 read GetElapsedMax;
     property ElapsedMin: Int64 read GetElapsedMin;
@@ -57,6 +64,7 @@ implementation
 
 procedure TCandlesIndicator.SetData(const Candles: TCandles);
 begin
+  SelectedIndex:=-1;
   Self.Data:=Candles;
   CalcRanges;
 end;
@@ -119,29 +127,32 @@ begin
   Result:=Round(Area.Width);
 end;
 
-procedure TCandlesIndicator.DrawCandle(Canvas: TCanvas; const Candle: TCandle; const DRect,VRect: TRectF);
+procedure TCandlesIndicator.DrawCandle(Canvas: TCanvas; const Candle: TCandle;
+  const DRect,VRect: TRectF; IsSelected: Boolean);
 var R,S: TRectF;
 begin
 
-  R.Left:=Candle.Time;
-  R.Right:=Candle.Time+Candle.Duration;
-  R.Top:=Candle.Open;
-  R.Bottom:=Candle.Close;
+  Canvas.Stroke.Kind:=TBrushKind.Solid;
+  Canvas.Stroke.Dash:=TStrokeDash.Solid;
+  Canvas.Stroke.Thickness:=2;
+  Canvas.Stroke.Color:=claBlack;
+
+  R:=GetCandleSourceRect(Candle,True);
   R:=EnsureRect(R,VRect,DRect);
+
   if R.Width>3 then R.Inflate(-1.5,0);
 
-  S.Left:=Candle.Time;
-  S.Right:=Candle.Time+Candle.Duration;
-  S.Top:=Candle.Max;
-  S.Bottom:=Candle.Min;
+  S:=GetCandleSourceRect(Candle,False);
   S:=EnsureRect(S,VRect,DRect);
+
+  if IsSelected then
+  begin
+    Canvas.Fill.Color:=SelectedColor;
+    Canvas.FillRect(S,0,0,AllCorners,1);
+  end;
 
   S.Left:=S.CenterPoint.X;
   S.Right:=S.Left;
-
-  Canvas.Stroke.Kind:=TBrushKind.Solid;
-  Canvas.Stroke.Thickness:=2;
-  Canvas.Stroke.Color:=claBlack;
 
   Canvas.DrawLine(S.TopLeft,S.BottomRight,1);
 
@@ -157,14 +168,51 @@ begin
 end;
 
 procedure TCandlesIndicator.DrawTo(Canvas: TCanvas; const ARect: TRectF);
-var V: TRectF;
+var
+  I: Integer;
+  V: TRectF;
 begin
 
-  V:=RectF(Elapsed,Area.Top,Elapsed+Duration,Area.Bottom);
+  V:=GetRect;
 
-  for var C in Data do
-  if InRange(C.Time,V.Left-C.Duration,V.Right-C.Duration) then DrawCandle(Canvas,C,ARect,V);
+  for I:=0 to High(Data) do
+  if InRange(Data[I].Time,V.Left-Data[I].Duration,V.Right{-Data[I].Duration}) then DrawCandle(Canvas,Data[I],ARect,V,I=SelectedIndex);
 
+end;
+
+function TCandlesIndicator.Get(const P: TPointF): Integer;
+begin
+  for Result:=0 to High(Data) do
+  if RectF(Data[Result].Time,Data[Result].Min,Data[Result].Time+
+    Data[Result].Duration,Data[Result].Max).Contains(P) then Exit;
+  Result:=-1;
+end;
+
+function TCandlesIndicator.GetRect: TRectF;
+begin
+  Result:=RectF(Elapsed,Area.Top,Elapsed+Duration,Area.Bottom);
+end;
+
+function TCandlesIndicator.GetCandleSourceRect(const Candle: TCandle; BodyOnly: Boolean): TRectF;
+begin
+
+  Result.Left:=Candle.Time;
+  Result.Right:=Candle.Time+Candle.Duration;
+
+  if BodyOnly then
+  begin
+    Result.Top:=Candle.Open;
+    Result.Bottom:=Candle.Close;
+  end else begin
+    Result.Top:=Candle.Max;
+    Result.Bottom:=Candle.Min;
+  end;
+
+end;
+
+function TCandlesIndicator.GetCandleRect(const Candle: TCandle; const ARect: TRectF; BodyOnly: Boolean): TRectF;
+begin
+  Result:=EnsureRect(GetCandleSourceRect(Candle,BodyOnly),GetRect,ARect);
 end;
 
 end.

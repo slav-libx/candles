@@ -6,7 +6,7 @@
         <MainSource>candles.dpr</MainSource>
         <Base>True</Base>
         <Config Condition="'$(Config)'==''">Debug</Config>
-        <Platform Condition="'$(Platform)'==''">Win64</Platform>
+        <Platform Condition="'$(Platform)'==''">Android64</Platform>
         <TargetedPlatforms>37983</TargetedPlatforms>
         <AppType>Application</AppType>
     </PropertyGroup>
@@ -404,6 +404,11 @@
         <DCCReference Include="Candles\Charts.Controls.pas"/>
         <DCCReference Include="Candles\Chart.Candles.pas"/>
         <DCCReference Include="Candles\Chart.Measures.pas"/>
+        <DCCReference Include="Frame.CandleSummary.pas">
+            <Form>CandleSummaryFrame</Form>
+            <FormType>fmx</FormType>
+            <DesignClass>TFrame</DesignClass>
+        </DCCReference>
         <BuildConfiguration Include="Release">
             <Key>Cfg_2</Key>
             <CfgParent>Base</CfgParent>
@@ -447,12 +452,6 @@
                 <DeployFile LocalName="$(BDS)\bin\Artwork\Android\FM_LauncherIcon_72x72.png" Configuration="Release" Class="Android_LauncherIcon72">
                     <Platform Name="Android64">
                         <RemoteName>ic_launcher.png</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="Win64\Debug\candles.rsm" Configuration="Debug" Class="DebugSymbols">
-                    <Platform Name="Win64">
-                        <RemoteName>candles.rsm</RemoteName>
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>

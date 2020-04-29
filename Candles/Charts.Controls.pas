@@ -17,42 +17,29 @@ uses
   Chart.Measures;
 
 type
-  TOnCandleClick = procedure (Sender: TObject; const Candle: TCandle) of object;
+  TOnCandleSelect = procedure (Sender: TObject; const Candle: TCandle) of object;
 
   TCandleChart = class(TControl)
   private
     Candles: TCandlesIndicator;
     ValueMeasure: TValueMeasure;
     ElapsesMeasure: TElapsesMeasure;
-//    Area: TRectF;
-//    Candles: TCandles;
-//    IndexMin: Integer;
-//    IndexMax: Integer;
-//    FElapsed: Int64;
-//    FDuration: Int64;
-//    DurationMin: Int64;
     FElapsedDownX: Int64;
     FZoomDuration: Int64;
     FZoomElapsed: Int64;
-    FOnCandleClick: TOnCandleClick;
+    FOnCandleSelect: TOnCandleSelect;
+    FOnCandleDeselect: TNotifyEvent;
     procedure DoCandleClick;
-//    procedure CalcRanges;
-//    function GetElapsedMax: Int64;
-//    function GetElapsedMin: Int64;
-//    function GetDurationMax: Int64;
+    procedure DoCandleDeselect;
     procedure SetElapsed(Value: Int64);
     procedure SetDuration(const Value: Int64);
     procedure SetBullColor(const Value: TAlphaColor);
     procedure SetBearColor(const Value: TAlphaColor);
-    //procedure DrawCandle(Canvas: TCanvas; const Candle: TCandle; const DRect,VRect: TRectF);
-//    procedure DrawRules(Canvas: TCanvas; const DRect,VRect: TRectF);
-//    procedure CalcRanges;
     function GetDuration: Int64;
-//    function GetDurationMax: Int64;
     function GetElapsed: Int64;
-//    function GetElapsedMax: Int64;
-//    function GetElapsedMin: Int64;
     function GetCandlesRect: TRectF;
+    procedure SetSelectedColor(const Value: TAlphaColor);
+    procedure SetMeasureLastColor(const Value: TAlphaColor);
   protected
     FMouseMoved: Boolean;
     procedure DoGesture(const EventInfo: TGestureEventInfo; var Handled: Boolean); override;
@@ -66,11 +53,15 @@ type
     procedure SetData(const Candles: TCandles);
     procedure SetValueMeasure(const Measures: TMeasures);
     procedure SetElapsesMeasure(const Elapses: TElapses);
+    function GetCandleRect(const Candle: TCandle; BodyOnly: Boolean=True): TRectF;
     property Elapsed: Int64 read GetElapsed write SetElapsed;
     property Duration: Int64 read GetDuration write SetDuration;
     property BullColor: TAlphaColor read Candles.BullColor write SetBullColor;
     property BearColor: TAlphaColor read Candles.BearColor write SetBearColor;
-    property OnCandleClick: TOnCandleClick read FOnCandleClick write FOnCandleClick;
+    property SelectedColor: TAlphaColor read Candles.SelectedColor write SetSelectedColor;
+    property MeasureLastColor: TAlphaColor read ValueMeasure.LastColor write SetMeasureLastColor;
+    property OnCandleSelect: TOnCandleSelect read FOnCandleSelect write FOnCandleSelect;
+    property OnCandleDeselect: TNotifyEvent read FOnCandleDeselect write FOnCandleDeselect;
   end;
 
 implementation
@@ -86,6 +77,8 @@ begin
 
   Candles.BullColor:=claGreen;
   Candles.BearColor:=claRed;
+  Candles.SelectedColor:=claGold;
+  ValueMeasure.LastColor:=claGoldenrod;
 
 end;
 
@@ -106,8 +99,21 @@ begin
   Repaint;
 end;
 
+procedure TCandleChart.SetSelectedColor(const Value: TAlphaColor);
+begin
+  Candles.SelectedColor:=Value;
+  Repaint;
+end;
+
+procedure TCandleChart.SetMeasureLastColor(const Value: TAlphaColor);
+begin
+  ValueMeasure.LastColor:=Value;
+  Repaint;
+end;
+
 procedure TCandleChart.SetData(const Candles: TCandles);
 begin
+  DoCandleDeselect;
   Self.Candles.SetData(Candles);
   ValueMeasure.SetRange(Self.Candles.Area.Bottom,Self.Candles.Area.Top);
   Repaint;
@@ -146,18 +152,27 @@ var
   P: TPointF;
   R: TRectF;
 begin
-  if Assigned(FOnCandleClick) then
+  DoCandleDeselect;
+  if Assigned(FOnCandleSelect) then
   begin
     P:=EnsurePoint(PressedPosition,GetCandlesRect,RectF(Elapsed,Candles.Area.Top,Elapsed+Duration,Candles.Area.Bottom));
-    for var C in Candles.Data do
+    Candles.SelectedIndex:=Candles.Get(P);
+    if Candles.SelectedIndex<>-1 then
     begin
-      R:=RectF(C.Time,C.Min,C.Time+C.Duration,C.Max);
-      if R.Contains(P) then
-      begin
-        FOnCandleClick(Self,C);
-        Exit;
-      end;
+      Repaint;
+      FOnCandleSelect(Self,Candles.Data[Candles.SelectedIndex]);
+      Exit;
     end;
+  end;
+end;
+
+procedure TCandleChart.DoCandleDeselect;
+begin
+  if Candles.SelectedIndex<>-1 then
+  begin
+    if Assigned(FOnCandleDeselect) then FOnCandleDeselect(Self);
+    Candles.SelectedIndex:=-1;
+    Repaint;
   end;
 end;
 
@@ -172,7 +187,9 @@ begin
 end;
 
 procedure TCandleChart.Paint;
-var R: TRectF;
+var
+  R: TRectF;
+  C: TCandle;
 begin
 
   ElapsesMeasure.SetInterval(Elapsed,Duration);
@@ -181,6 +198,14 @@ begin
 
   R:=GetCandlesRect;
   R.Right:=LocalRect.Right;
+
+  C:=Default(TCandle);
+
+  if Length(Candles.Data)>0 then
+    C:=Candles.Data[High(Candles.Data)];
+
+  ValueMeasure.SetLastValue(Candles.GetCandleRect(C,R,True),C.Close,FormatFloat('0.00####',C.Close));
+
   ValueMeasure.DrawTo(Canvas,R);
 
   R:=GetCandlesRect;
@@ -239,6 +264,7 @@ end;
 procedure TCandleChart.MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Single);
 begin
   inherited;
+  DoCandleDeselect;
   FMouseMoved:=False;
   FElapsedDownX:=Elapsed;
 end;
@@ -259,6 +285,11 @@ procedure TCandleChart.Click;
 begin
   inherited;
   if not FMouseMoved then DoCandleClick;
+end;
+
+function TCandleChart.GetCandleRect(const Candle: TCandle; BodyOnly: Boolean): TRectF;
+begin
+  Result:=Candles.GetCandleRect(Candle,GetCandlesRect,BodyOnly);
 end;
 
 end.

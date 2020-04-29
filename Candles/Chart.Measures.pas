@@ -14,6 +14,7 @@ uses
 
 type
   TMeasure = record
+    CandleRect: TRectF;
     Value: Extended;
     Text: string;
   end;
@@ -24,11 +25,14 @@ type
   private
     FRangeFrom: Extended;
     FRangeTo: Extended;
+    FLast: TMeasure;
     procedure DrawRules(Canvas: TCanvas; const Measure: TMeasure; const DRect,VRect: TRectF);
   public
     Data: TMeasures;
+    LastColor: TAlphaColor;
     procedure SetData(const Measures: TMeasures);
     procedure SetRange(RangeFrom,RangeTo: Extended);
+    procedure SetLastValue(const CandleRect: TRectF; Value: Extended; const Text: string);
     procedure DrawTo(Canvas: TCanvas; const ARect: TRectF);
   end;
 
@@ -64,6 +68,13 @@ begin
   FRangeTo:=RangeTo;
 end;
 
+procedure TValueMeasure.SetLastValue(const CandleRect: TRectF; Value: Extended; const Text: string);
+begin
+  FLast.CandleRect:=CandleRect;
+  FLast.Value:=Value;
+  FLast.Text:=Text;
+end;
+
 function CalcInterval(Min,Max: Extended): Extended;
 begin
   Result:=Max-Min;
@@ -78,6 +89,7 @@ var
 begin
 
   Canvas.Stroke.Kind:=TBrushKind.Solid;
+  Canvas.Stroke.Dash:=TStrokeDash.Solid;
   Canvas.Stroke.Thickness:=0.5;
   Canvas.Stroke.Color:=claGray;
 
@@ -101,6 +113,27 @@ begin
 
   Canvas.FillText(TextRect,Text,False,1,[],TTextAlign.Trailing,TTextAlign.Leading);
 
+  if FLast.CandleRect.Height<>0 then
+  begin
+
+    P1:=PointF(DRect.Left{FLast.CandleRect.Right},Canvas.AlignToPixelVertically(EnsureValue(FLast.Value,
+      VRect.Bottom,VRect.Top,DRect.Top,DRect.Bottom))+0.5);
+
+    P2:=PointF(DRect.Right,P1.Y);
+
+    TextRect:=RectF(DRect.Left,P1.Y,DRect.Right,P1.Y+100);
+
+    Canvas.Stroke.Thickness:=2;
+    Canvas.Stroke.Color:=LastColor;
+    Canvas.Stroke.Dash:=TStrokeDash.Dash;
+
+    Canvas.DrawLine(P1,P2,1);
+
+    Canvas.Fill.Color:=LastColor;
+
+    Canvas.FillText(TextRect,FLast.Text,False,1,[],TTextAlign.Trailing,TTextAlign.Leading);
+
+  end;
 
 //  VInterval:=CalcInterval(VRect.Bottom,VRect.Top);
 //  DInterval:=EnsureValue(VRect.Bottom+VInterval,VRect.Bottom,VRect.Top,DRect.Top,DRect.Bottom);
@@ -158,6 +191,7 @@ var
 begin
 
   Canvas.Stroke.Kind:=TBrushKind.Solid;
+  Canvas.Stroke.Dash:=TStrokeDash.Solid;
   Canvas.Stroke.Thickness:=0.5;
   Canvas.Stroke.Color:=claGray;
 
