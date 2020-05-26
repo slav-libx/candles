@@ -10,78 +10,93 @@ uses
   System.UIConsts,
   FMX.Types,
   FMX.Graphics,
-  Charts.Math;
+  Charts.Math,
+  Candles.Types;
 
 type
-  TCandle = record
-    Min: Extended;
-    Max: Extended;
-    Open: Extended;
-    Close: Extended;
-    Time: Int64;
-    Duration: Int64;
-  end;
-
-  TCandles = array of TCandle;
-
   TCandlesIndicator = record
   private
     FElapsed: Int64;
     FDuration: Int64;
     FDurationMin: Int64;
-    procedure DrawCandle(Canvas: TCanvas; const Candle: TCandle; const DRect,VRect: TRectF;
+    procedure DrawCandle(Canvas: TCanvas; const Candle: TCandle; const DRect: TRectF; Area: TRectA;
       IsSelected: Boolean);
-    procedure CalcRanges;
     procedure SetElapsed(Value: Int64);
     function GetElapsedMax: Int64;
     function GetElapsedMin: Int64;
     procedure SetDuration(const Value: Int64);
     function GetDurationMax: Int64;
-    function GetRect: TRectF;
+    function GetDurationMin: Int64;
+    function GetRect: TRectA;
   public
     Data: TCandles;
-    Area: TRectF;
-    IndexMin: Integer;
-    IndexMax: Integer;
+    Area: TRectA;
     SelectedIndex: Integer;
     BullColor: TAlphaColor;
     BearColor: TAlphaColor;
     SelectedColor: TAlphaColor;
     procedure DrawTo(Canvas: TCanvas; const ARect: TRectF);
+    procedure Clear;
+    procedure AddCandle(const Candle: TCandle);
     procedure SetData(const Candles: TCandles);
-    function Get(const P: TPointF): Integer;
-    function GetCandleSourceRect(const Candle: TCandle; BodyOnly: Boolean): TRectF;
+    procedure CalcRanges;
+    function Get(const P: TPointA): Integer;
+    function GetCandleSourceRect(const Candle: TCandle; BodyOnly: Boolean): TRectA;
     function GetCandleRect(const Candle: TCandle; const ARect: TRectF; BodyOnly: Boolean=True): TRectF;
     property Elapsed: Int64 read FElapsed write SetElapsed;
     property ElapsedMax: Int64 read GetElapsedMax;
     property ElapsedMin: Int64 read GetElapsedMin;
     property Duration: Int64 read FDuration write SetDuration;
     property DurationMax: Int64 read GetDurationMax;
-    property DurationMin: Int64 read FDurationMin;
+    property DurationMin: Int64 read GetDurationMin;
   end;
 
 implementation
 
-procedure TCandlesIndicator.SetData(const Candles: TCandles);
+procedure TCandlesIndicator.Clear;
 begin
-  SelectedIndex:=-1;
-  Self.Data:=Candles;
-  CalcRanges;
+  Data:=nil;
 end;
 
-procedure TCandlesIndicator.CalcRanges;
+procedure TCandlesIndicator.AddCandle(const Candle: TCandle);
 var I: Integer;
 begin
 
-  FDurationMin:=1000;
-  FDuration:=5000;
+  for I:=High(Data) downto 0 do
+  if Data[I].Time<=Candle.Time then
+  begin
 
-  FElapsed:=0;
+    if Data[I].Time=Candle.Time then
+      Data[I]:=Candle
+    else
+      Insert(Candle,Data,I+1);
+
+    Exit;
+
+  end;
+
+  Data:=Data+[Candle];
+
+end;
+
+procedure TCandlesIndicator.SetData(const Candles: TCandles);
+begin
+
+  if Length(Data)=0 then
+    Data:=Candles
+  else
+    for var C in Candles do AddCandle(C);
+
+end;
+
+procedure TCandlesIndicator.CalcRanges;
+var I,IndexMin,IndexMax: Integer; M: Extended;
+begin
+
+  if Length(Data)=0 then Exit;
 
   IndexMin:=-1;
   IndexMax:=-1;
-
-  if Length(Data)=0 then Exit;
 
   for I:=0 to High(Data) do
   begin
@@ -89,16 +104,23 @@ begin
     if (IndexMax=-1) or (Data[IndexMax].Max<Data[I].Max) then IndexMax:=I;
   end;
 
-  Area.Bottom:=Data[IndexMin].Min;
-  Area.Top:=Data[IndexMax].Max;
+  if Length(Data)>4 then
+    M:=(Data[IndexMax].Max-Data[IndexMin].Min)/7
+  else
+    M:=(Data[IndexMax].Max-Data[IndexMin].Min)/3;
 
-  Area.Left:=Data[0].Time;
-  Area.Right:=Data[High(Data)].Time+Data[High(Data)].Duration;
+  if M=0 then M:=0.1;
 
-  FDurationMin:=1000;
-  FDuration:=DurationMax;
+  Area.ValueMax:=Data[IndexMax].Max+M;
+  Area.ValueMin:=Data[IndexMin].Min-M;
 
-  FElapsed:=Data[0].Time;
+//  Area.Left:=Data[0].Time;
+//  Area.Right:=Data[High(Data)].Time+Data[High(Data)].Duration;
+
+//  FDurationMin:=1000;
+//  FDuration:=DurationMax;
+
+//  FElapsed:=Data[0].Time;
 
 end;
 
@@ -114,98 +136,140 @@ end;
 
 function TCandlesIndicator.GetElapsedMax: Int64;
 begin
-  Result:=Round(Area.Right-Duration*0.8);
+  Result:=Area.TimeTo-Duration;
 end;
 
 function TCandlesIndicator.GetElapsedMin: Int64;
 begin
-  Result:=Round(Area.Left-Duration*0.1);
+  Result:=Area.TimeFrom;//-Duration*0.1);
 end;
 
 function TCandlesIndicator.GetDurationMax: Int64;
 begin
-  Result:=Round(Area.Width);
+  Result:=Area.TimeTo-Area.TimeFrom;
+end;
+
+function TCandlesIndicator.GetDurationMin: Int64;
+begin
+  if Length(Data)>0 then
+    Result:=Data[0].Duration
+  else
+    Result:=1000;
+end;
+
+procedure DrawRect(Canvas: TCanvas; ARect: TRectF);
+begin
+
+  ARect.Height:=Max(1,ARect.Height);
+
+  Canvas.FillRect(ARect,0,0,AllCorners,1);
+
+  ARect.Inflate(-Canvas.Stroke.Thickness/2,0);
+
+  ARect.Top:=Canvas.AlignToPixelVertically(ARect.Top);
+  ARect.Bottom:=Canvas.AlignToPixelVertically(ARect.Bottom);
+
+  Canvas.DrawRect(ARect,0,0,AllCorners,1);
+
 end;
 
 procedure TCandlesIndicator.DrawCandle(Canvas: TCanvas; const Candle: TCandle;
-  const DRect,VRect: TRectF; IsSelected: Boolean);
-var R,S: TRectF;
+  const DRect: TRectF; Area: TRectA; IsSelected: Boolean);
+var
+  CR: TRectF;
+  CS: TRectF;
 begin
 
   Canvas.Stroke.Kind:=TBrushKind.Solid;
   Canvas.Stroke.Dash:=TStrokeDash.Solid;
-  Canvas.Stroke.Thickness:=2;
   Canvas.Stroke.Color:=claBlack;
+  Canvas.Stroke.Cap:=TStrokeCap.Flat;
+  Canvas.Stroke.Join:=TStrokeJoin.Miter;
 
-  R:=GetCandleSourceRect(Candle,True);
-  R:=EnsureRect(R,VRect,DRect);
+  Canvas.Fill.Kind:=TBrushKind.Solid;
 
-  if R.Width>3 then R.Inflate(-1.5,0);
+  CR:=GetCandleRect(Candle,DRect,True);
 
-  S:=GetCandleSourceRect(Candle,False);
-  S:=EnsureRect(S,VRect,DRect);
+  CS:=GetCandleRect(Candle,DRect,False);
+
+  CR.Top:=Canvas.AlignToPixelVertically(CR.Top);
+  CR.Bottom:=Canvas.AlignToPixelVertically(CR.Bottom);
+
+  CS.Top:=Canvas.AlignToPixelVertically(CS.Top);
+  CS.Bottom:=Canvas.AlignToPixelVertically(CS.Bottom);
 
   if IsSelected then
   begin
     Canvas.Fill.Color:=SelectedColor;
-    Canvas.FillRect(S,0,0,AllCorners,1);
+    Canvas.FillRect(CS,0,0,AllCorners,1);
   end;
 
-  S.Left:=S.CenterPoint.X;
-  S.Right:=S.Left;
+  CS.Left:=CS.CenterPoint.X;
+  CS.Right:=CS.Left;
 
-  Canvas.DrawLine(S.TopLeft,S.BottomRight,1);
+  Canvas.Stroke.Thickness:=2;
+
+  {$IFDEF MSWINDOWS}
+
+  CS.Inflate(0,-Canvas.Stroke.Thickness/2);
+
+  {$ENDIF}
+
+  if CS.Height>1 then
+    Canvas.DrawLine(CS.TopLeft,CS.BottomRight,1);
 
   if Candle.Open<Candle.Close then
     Canvas.Fill.Color:=BullColor
   else
     Canvas.Fill.Color:=BearColor;
-  Canvas.Fill.Kind:=TBrushKind.Solid;
 
-  Canvas.FillRect(R,0,0,AllCorners,1);
-  Canvas.DrawRect(R,0,0,AllCorners,1);
+  Canvas.Stroke.Thickness:=1;
+
+  DrawRect(Canvas,CR);
 
 end;
 
 procedure TCandlesIndicator.DrawTo(Canvas: TCanvas; const ARect: TRectF);
 var
   I: Integer;
-  V: TRectF;
+  V: TRectA;
 begin
 
   V:=GetRect;
 
   for I:=0 to High(Data) do
-  if InRange(Data[I].Time,V.Left-Data[I].Duration,V.Right{-Data[I].Duration}) then DrawCandle(Canvas,Data[I],ARect,V,I=SelectedIndex);
+  if InRange(Data[I].Time,V.TimeFrom-Data[I].Duration,V.TimeTo) then DrawCandle(Canvas,Data[I],ARect,V,I=SelectedIndex);
 
 end;
 
-function TCandlesIndicator.Get(const P: TPointF): Integer;
+function TCandlesIndicator.Get(const P: TPointA): Integer;
 begin
   for Result:=0 to High(Data) do
-  if RectF(Data[Result].Time,Data[Result].Min,Data[Result].Time+
-    Data[Result].Duration,Data[Result].Max).Contains(P) then Exit;
+  if GetCandleSourceRect(Data[Result],False).Contains(P) then Exit;
   Result:=-1;
 end;
 
-function TCandlesIndicator.GetRect: TRectF;
+function TCandlesIndicator.GetRect: TRectA;
 begin
-  Result:=RectF(Elapsed,Area.Top,Elapsed+Duration,Area.Bottom);
+  Result.TimeFrom:=Elapsed;
+  Result.TimeTo:=Elapsed+Duration;
+  Result.ValueMin:=Area.ValueMin;
+  Result.ValueMax:=Area.ValueMax;
 end;
 
-function TCandlesIndicator.GetCandleSourceRect(const Candle: TCandle; BodyOnly: Boolean): TRectF;
+function TCandlesIndicator.GetCandleSourceRect(const Candle: TCandle; BodyOnly: Boolean): TRectA;
 begin
 
-  Result.Left:=Candle.Time;
-  Result.Right:=Candle.Time+Candle.Duration;
+  Result.TimeFrom:=Candle.Time;
+  Result.TimeTo:=Candle.Time+Candle.Duration;
 
   if BodyOnly then
   begin
-    Result.Top:=Candle.Open;
-    Result.Bottom:=Candle.Close;
+    Result.ValueMax:=Max(Candle.Open,Candle.Close);
+    Result.ValueMin:=Min(Candle.Open,Candle.Close);
   end else begin
-    Result.Top:=Candle.Max;
-    Result.Bottom:=Candle.Min;
+    Result.ValueMax:=Candle.Max;
+    Result.ValueMin:=Candle.Min;
   end;
 
 end;
@@ -213,6 +277,8 @@ end;
 function TCandlesIndicator.GetCandleRect(const Candle: TCandle; const ARect: TRectF; BodyOnly: Boolean): TRectF;
 begin
   Result:=EnsureRect(GetCandleSourceRect(Candle,BodyOnly),GetRect,ARect);
+  Result.NormalizeRect;
+  if Result.Width>2 then Result.Inflate(0,0,-1.5,0) else Result.Inflate(0,0,0,0);
 end;
 
 end.

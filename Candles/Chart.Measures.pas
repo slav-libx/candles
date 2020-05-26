@@ -10,62 +10,71 @@ uses
   System.UIConsts,
   FMX.Types,
   FMX.Graphics,
+  Measures.Types,
   Charts.Math;
 
 type
-  TMeasure = record
-    CandleRect: TRectF;
-    Value: Extended;
-    Text: string;
-  end;
-
-  TMeasures = array of TMeasure;
-
   TValueMeasure = record
   private
-    FRangeFrom: Extended;
-    FRangeTo: Extended;
+    ValueMin: Extended;
+    ValueMax: Extended;
     FLast: TMeasure;
-    procedure DrawRules(Canvas: TCanvas; const Measure: TMeasure; const DRect,VRect: TRectF);
+    procedure DrawRules(Canvas: TCanvas; const Measure: TMeasure; const DRect: TRectF; VRect: TRectA);
+    procedure DrawLastValue(Canvas: TCanvas; const DRect: TRectF; VRect: TRectA);
   public
     Data: TMeasures;
     LastColor: TAlphaColor;
+    Width: Single;
+    procedure Clear;
     procedure SetData(const Measures: TMeasures);
-    procedure SetRange(RangeFrom,RangeTo: Extended);
+    procedure SetRange(ValueMin,ValueMax: Extended);
     procedure SetLastValue(const CandleRect: TRectF; Value: Extended; const Text: string);
     procedure DrawTo(Canvas: TCanvas; const ARect: TRectF);
   end;
-
-  TElapse = record
-    Value: Extended;
-    Text: string;
-  end;
-
-  TElapses = array of TElapse;
 
   TElapsesMeasure = record
   private
     FElapsed: Int64;
     FDuration: Int64;
-    procedure DrawRules(Canvas: TCanvas; const Elapse: TElapse; const DRect,VRect: TRectF);
+    procedure DrawRules(Canvas: TCanvas; const Elapse: TElapse; const DRect: TRectF; VRect: TRectA);
   public
     Data: TElapses;
+    Height: Single;
+    procedure Clear;
     procedure SetData(const Elapses: TElapses);
-    procedure SetInterval(Elapsed,Duration: Int64);
+    procedure SetRange(Elapsed,Duration: Int64);
     procedure DrawTo(Canvas: TCanvas; const ARect: TRectF);
   end;
 
 implementation
+
+function GetOpacity(Value,Border1,Border2,Distance: Single): Single;
+begin
+
+  if Value<Border1 then Result:=0 else
+  if Value<Border1+Distance then Result:=EnsureValue(Value,Border1,Border1+Distance,Single(0),1) else
+  if Value<Border2-Distance then Result:=1 else
+  if Value<Border2 then Result:=EnsureValue(Value,Border2-Distance,Border2,Single(1),0) else
+    Result:=0;
+
+end;
+
+{ TValueMeasure }
+
+procedure TValueMeasure.Clear;
+begin
+  Data:=nil;
+end;
 
 procedure TValueMeasure.SetData(const Measures: TMeasures);
 begin
   Data:=Measures;
 end;
 
-procedure TValueMeasure.SetRange(RangeFrom,RangeTo: Extended);
+procedure TValueMeasure.SetRange(ValueMin,ValueMax: Extended);
 begin
-  FRangeFrom:=RangeFrom;
-  FRangeTo:=RangeTo;
+  Self.ValueMin:=ValueMin;
+  Self.ValueMax:=ValueMax;
 end;
 
 procedure TValueMeasure.SetLastValue(const CandleRect: TRectF; Value: Extended; const Text: string);
@@ -81,11 +90,13 @@ begin
   Result:=Result/20;
 end;
 
-procedure TValueMeasure.DrawRules(Canvas: TCanvas; const Measure: TMeasure; const DRect,VRect: TRectF);
+procedure TValueMeasure.DrawRules(Canvas: TCanvas; const Measure: TMeasure;
+  const DRect: TRectF; VRect: TRectA);
 var
   P1,P2: TPointF;
   TextRect: TRectF;
   Text: string;
+  Opacity: Single;
 begin
 
   Canvas.Stroke.Kind:=TBrushKind.Solid;
@@ -100,94 +111,103 @@ begin
 
   Text:=Measure.Text;
 
-  if Text='' then Text:=FormatFloat('0.0######',Measure.Value);
-
   P1:=PointF(DRect.Left,Canvas.AlignToPixelVertically(EnsureValue(Measure.Value,
-    VRect.Bottom,VRect.Top,DRect.Top,DRect.Bottom))+0.5);
+    VRect.ValueMax,VRect.ValueMin,DRect.Top,DRect.Bottom))+0.5);
 
-  P2:=PointF(DRect.Right,P1.Y);
+  P2:=PointF(DRect.Right-Width,P1.Y);
 
-  TextRect:=RectF(DRect.Left,P1.Y,DRect.Right,P1.Y+100);
+  TextRect:=RectF(DRect.Right-Width+2,P1.Y-20,DRect.Right,P1.Y+20);
+
+  Opacity:=GetOpacity(P1.Y,DRect.Top,DRect.Bottom,30);
+
+  Canvas.DrawLine(P1,P2,Opacity);
+
+  Canvas.FillText(TextRect,Text,False,Opacity,[],TTextAlign.Leading,TTextAlign.Center);
+
+end;
+
+procedure TValueMeasure.DrawLastValue(Canvas: TCanvas; const DRect: TRectF; VRect: TRectA);
+var
+  P1,P2: TPointF;
+  TextRect: TRectF;
+  Text: string;
+begin
+
+  if FLast.CandleRect.Width=0 then Exit;
+
+  Canvas.Stroke.Kind:=TBrushKind.Solid;
+  Canvas.Stroke.Thickness:=2;
+  Canvas.Stroke.Color:=LastColor;
+  Canvas.Stroke.Dash:=TStrokeDash.Dash;
+
+  Canvas.Fill.Kind:=TBrushKind.Solid;
+  Canvas.Font.Size:=12;
+  Canvas.Font.Family:='Lucida Grande';
+
+  P1:=PointF(DRect.Left{FLast.CandleRect.Right},Canvas.AlignToPixelVertically(EnsureValue(FLast.Value,
+    VRect.ValueMax,VRect.ValueMin,DRect.Top,DRect.Bottom))+0.5);
+
+  P2:=PointF(DRect.Right-Width,P1.Y);
 
   Canvas.DrawLine(P1,P2,1);
 
-  Canvas.FillText(TextRect,Text,False,1,[],TTextAlign.Trailing,TTextAlign.Leading);
+  TextRect:=TRectF.Create(PointF(0,0),Width,100);
 
-  if FLast.CandleRect.Height<>0 then
-  begin
+  Canvas.MeasureText(TextRect,FLast.Text,False,[],TTextAlign.Leading,TTextAlign.Leading);
 
-    P1:=PointF(DRect.Left{FLast.CandleRect.Right},Canvas.AlignToPixelVertically(EnsureValue(FLast.Value,
-      VRect.Bottom,VRect.Top,DRect.Top,DRect.Bottom))+0.5);
+  TextRect.Height:=TextRect.Height+4;
 
-    P2:=PointF(DRect.Right,P1.Y);
+  TextRect:=TRectF.Create(PointF(DRect.Right-Width,P1.Y-TextRect.Height/2),Width,TextRect.Height);
 
-    TextRect:=RectF(DRect.Left,P1.Y,DRect.Right,P1.Y+100);
+  Canvas.Fill.Color:=LastColor;
 
-    Canvas.Stroke.Thickness:=2;
-    Canvas.Stroke.Color:=LastColor;
-    Canvas.Stroke.Dash:=TStrokeDash.Dash;
+  Canvas.FillRect(TextRect,0,0,AllCorners,1);
 
-    Canvas.DrawLine(P1,P2,1);
+  Canvas.Fill.Color:=claBlack;
 
-    Canvas.Fill.Color:=LastColor;
-
-    Canvas.FillText(TextRect,FLast.Text,False,1,[],TTextAlign.Trailing,TTextAlign.Leading);
-
-  end;
-
-//  VInterval:=CalcInterval(VRect.Bottom,VRect.Top);
-//  DInterval:=EnsureValue(VRect.Bottom+VInterval,VRect.Bottom,VRect.Top,DRect.Top,DRect.Bottom);
-//
-//  V:=FloatDiv(VRect.Bottom,VInterval);
-//  Y:=EnsureValue(V,VRect.Bottom,VRect.Top,DRect.Bottom,DRect.Top);
-//
-//  while Y>DRect.Top do
-//  begin
-//
-//    P:=PointF(DRect.Left,Canvas.AlignToPixelVertically(Y)+0.5);
-//
-//    TextRect:=RectF(DRect.Left,P.Y,DRect.Right,P.Y+100);
-//
-//    Canvas.DrawLine(P,PointF(DRect.Right,P.Y),1);
-//    Canvas.FillText(TextRect,FormatFloat('0.0######',V),False,1,[],TTextAlign.Trailing,TTextAlign.Leading);
-//
-//    Y:=Y-DInterval;
-//    V:=V+VInterval;
-//
-//  end;
+  Canvas.FillText(TextRect,FLast.Text,False,1,[],TTextAlign.Center,TTextAlign.Center);
 
 end;
 
 procedure TValueMeasure.DrawTo(Canvas: TCanvas; const ARect: TRectF);
-var V: TRectF;
+var V: TRectA;
 begin
 
-  V:=RectF(0,FRangeFrom,100,FRangeTo);
+  V:=RectA(0,100,ValueMin,ValueMax);
 
   for var C in Data do
-  if InRange(C.Value,FRangeFrom,FRangeTo) then
-  DrawRules(Canvas,C,ARect,V);
+  if InRange(C.Value,ValueMin,ValueMax) then
+    DrawRules(Canvas,C,ARect,V);
+
+  DrawLastValue(Canvas,ARect,V);
 
 end;
 
 { TElapsesMeasure }
+
+procedure TElapsesMeasure.Clear;
+begin
+  Data:=nil;
+end;
 
 procedure TElapsesMeasure.SetData(const Elapses: TElapses);
 begin
   Data:=Elapses;
 end;
 
-procedure TElapsesMeasure.SetInterval(Elapsed,Duration: Int64);
+procedure TElapsesMeasure.SetRange(Elapsed,Duration: Int64);
 begin
   FElapsed:=Elapsed;
   FDuration:=Duration;
 end;
 
-procedure TElapsesMeasure.DrawRules(Canvas: TCanvas; const Elapse: TElapse; const DRect,VRect: TRectF);
+procedure TElapsesMeasure.DrawRules(Canvas: TCanvas; const Elapse: TElapse;
+  const DRect: TRectF; VRect: TRectA);
 var
   P1,P2: TPointF;
   TextRect: TRectF;
   Text: string;
+  Opacity: Single;
 begin
 
   Canvas.Stroke.Kind:=TBrushKind.Solid;
@@ -197,34 +217,37 @@ begin
 
   Canvas.Fill.Color:=claBlack;
   Canvas.Fill.Kind:=TBrushKind.Solid;
-  Canvas.Font.Size:=12;
+  Canvas.Font.Size:=10;
   Canvas.Font.Family:='Lucida Grande';
 
   Text:=Elapse.Text;
 
-  if Text='' then Text:=Elapse.Value.ToString;
+  if Text='' then Text:=Elapse.Time.ToString;
 
-  P1:=PointF(Canvas.AlignToPixelHorizontally(EnsureValue(Elapse.Value,
-    VRect.Left,VRect.Right,DRect.Left,DRect.Right))+0.5,DRect.Top);
+  P1:=PointF(Canvas.AlignToPixelHorizontally(EnsureValue(Elapse.Time,
+    VRect.TimeFrom,VRect.TimeTo,DRect.Left,DRect.Right))+0.5,DRect.Top);
 
   P2:=PointF(P1.X,DRect.Bottom);
 
   TextRect:=RectF(P1.X-100,DRect.Bottom-100,P1.X+100,DRect.Bottom);
 
-  Canvas.DrawLine(P1,P2,1);
+  Opacity:=GetOpacity(P1.X,DRect.Left,DRect.Right,20);
 
-  Canvas.FillText(TextRect,Text,False,1,[],TTextAlign.Center,TTextAlign.Trailing);
+  Canvas.DrawLine(P1,P2-PointF(0,Height-6),Opacity);
+
+  Canvas.FillText(TextRect,Text,False,Opacity,[],
+    TTextAlign.Center,TTextAlign.Trailing);
 
 end;
 
 procedure TElapsesMeasure.DrawTo(Canvas: TCanvas; const ARect: TRectF);
-var V: TRectF;
+var V: TRectA;
 begin
 
-  V:=RectF(FElapsed,100,FElapsed+FDuration,0);
+  V:=RectA(FElapsed,FElapsed+FDuration,0,100);
 
   for var C in Data do
-  if InRange(C.Value,V.Left,V.Right) then
+  if InRange(C.Time,V.TimeFrom,V.TimeTo) then
   DrawRules(Canvas,C,ARect,V);
 
 end;

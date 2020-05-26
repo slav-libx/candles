@@ -12,8 +12,11 @@ uses
   FMX.Types,
   FMX.Graphics,
   FMX.Controls,
+  Candles.Types,
+  Measures.Types,
   Charts.Math,
   Chart.Candles,
+  Chart.Volumes,
   Chart.Measures;
 
 type
@@ -22,6 +25,7 @@ type
   TCandleChart = class(TControl)
   private
     Candles: TCandlesIndicator;
+    Volumes: TVolumesIndicator;
     ValueMeasure: TValueMeasure;
     ElapsesMeasure: TElapsesMeasure;
     FElapsedDownX: Int64;
@@ -37,9 +41,13 @@ type
     procedure SetBearColor(const Value: TAlphaColor);
     function GetDuration: Int64;
     function GetElapsed: Int64;
+    function GetAreaRect: TRectF;
     function GetCandlesRect: TRectF;
+    function GetVolumesRect: TRectF;
     procedure SetSelectedColor(const Value: TAlphaColor);
     procedure SetMeasureLastColor(const Value: TAlphaColor);
+    procedure SetMeasureHeight(const Value: Single);
+    procedure SetMeasureWidth(const Value: Single);
   protected
     FMouseMoved: Boolean;
     procedure DoGesture(const EventInfo: TGestureEventInfo; var Handled: Boolean); override;
@@ -50,16 +58,24 @@ type
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
-    procedure SetData(const Candles: TCandles);
+    procedure ClearData;
+    procedure SetCandlesData(const Candles: TCandles);
     procedure SetValueMeasure(const Measures: TMeasures);
     procedure SetElapsesMeasure(const Elapses: TElapses);
+    procedure SetCandlesTimes(StartTime,EndTime: Int64);
+    procedure SetCandlesRange(MinValue,MaxValue: Extended);
+    procedure AutoCalcRanges;
     function GetCandleRect(const Candle: TCandle; BodyOnly: Boolean=True): TRectF;
+    function EOE: Boolean;
+    procedure Deselect;
     property Elapsed: Int64 read GetElapsed write SetElapsed;
     property Duration: Int64 read GetDuration write SetDuration;
     property BullColor: TAlphaColor read Candles.BullColor write SetBullColor;
     property BearColor: TAlphaColor read Candles.BearColor write SetBearColor;
     property SelectedColor: TAlphaColor read Candles.SelectedColor write SetSelectedColor;
     property MeasureLastColor: TAlphaColor read ValueMeasure.LastColor write SetMeasureLastColor;
+    property MeasureWidth: Single read ValueMeasure.Width write SetMeasureWidth;
+    property MeasureHeight: Single read ElapsesMeasure.Height write SetMeasureHeight;
     property OnCandleSelect: TOnCandleSelect read FOnCandleSelect write FOnCandleSelect;
     property OnCandleDeselect: TNotifyEvent read FOnCandleDeselect write FOnCandleDeselect;
   end;
@@ -78,7 +94,14 @@ begin
   Candles.BullColor:=claGreen;
   Candles.BearColor:=claRed;
   Candles.SelectedColor:=claGold;
-  ValueMeasure.LastColor:=claGoldenrod;
+
+  Volumes.BullColor:=claGreen;
+  Volumes.BearColor:=claRed;
+
+  ValueMeasure.LastColor:=$FFED9A23;
+
+  ValueMeasure.Width:=65;
+  ElapsesMeasure.Height:=20;
 
 end;
 
@@ -90,12 +113,14 @@ end;
 procedure TCandleChart.SetBullColor(const Value: TAlphaColor);
 begin
   Candles.BullColor:=Value;
+  Volumes.BullColor:=Value;
   Repaint;
 end;
 
 procedure TCandleChart.SetBearColor(const Value: TAlphaColor);
 begin
   Candles.BearColor:=Value;
+  Volumes.BearColor:=Value;
   Repaint;
 end;
 
@@ -105,17 +130,44 @@ begin
   Repaint;
 end;
 
+procedure TCandleChart.SetMeasureHeight(const Value: Single);
+begin
+  ElapsesMeasure.Height:=Value;
+  Repaint;
+end;
+
 procedure TCandleChart.SetMeasureLastColor(const Value: TAlphaColor);
 begin
   ValueMeasure.LastColor:=Value;
   Repaint;
 end;
 
-procedure TCandleChart.SetData(const Candles: TCandles);
+procedure TCandleChart.SetMeasureWidth(const Value: Single);
+begin
+  ValueMeasure.Width:=Value;
+  Repaint;
+end;
+
+function TCandleChart.EOE: Boolean;
+begin
+  Result:=Elapsed=Candles.ElapsedMax;
+end;
+
+procedure TCandleChart.ClearData;
+begin
+  DoCandleDeselect;
+  Self.Candles.Clear;
+  Self.Volumes.Clear;
+  Self.ValueMeasure.Clear;
+  Self.ElapsesMeasure.Clear;
+  Repaint;
+end;
+
+procedure TCandleChart.SetCandlesData(const Candles: TCandles);
 begin
   DoCandleDeselect;
   Self.Candles.SetData(Candles);
-  ValueMeasure.SetRange(Self.Candles.Area.Bottom,Self.Candles.Area.Top);
+  Self.Volumes.SetData(Candles);
   Repaint;
 end;
 
@@ -127,6 +179,28 @@ end;
 procedure TCandleChart.SetElapsesMeasure(const Elapses: TElapses);
 begin
   ElapsesMeasure.SetData(Elapses);
+end;
+
+procedure TCandleChart.SetCandlesTimes(StartTime,EndTime: Int64);
+begin
+  Candles.Area.TimeFrom:=StartTime;
+  Candles.Area.TimeTo:=EndTime;
+  Repaint;
+end;
+
+procedure TCandleChart.SetCandlesRange(MinValue,MaxValue: Extended);
+begin
+  Candles.Area.ValueMin:=MinValue;
+  Candles.Area.ValueMax:=MaxValue;
+  Repaint;
+end;
+
+procedure TCandleChart.AutoCalcRanges;
+begin
+  Candles.CalcRanges;
+  ValueMeasure.SetRange(Candles.Area.ValueMin,Candles.Area.ValueMax);
+  Volumes.CalcRanges;
+  Repaint;
 end;
 
 procedure TCandleChart.SetDuration(const Value: Int64);
@@ -141,21 +215,34 @@ begin
   Repaint;
 end;
 
-function TCandleChart.GetCandlesRect: TRectF;
+function TCandleChart.GetAreaRect: TRectF;
 begin
   Result:=LocalRect;
-  Result.Inflate(-10,-20,-60,-30);
+  Result.Inflate(-20,0,-ValueMeasure.Width,-MeasureHeight);
+end;
+
+function TCandleChart.GetCandlesRect: TRectF;
+begin
+  Result:=GetAreaRect;
+  Result.Height:=Round(Result.Height*0.9);
+end;
+
+function TCandleChart.GetVolumesRect: TRectF;
+begin
+  Result:=GetAreaRect;
+  Result.Top:=GetCandlesRect.Bottom;
 end;
 
 procedure TCandleChart.DoCandleClick;
-var
-  P: TPointF;
-  R: TRectF;
+var P: TPointA;
 begin
+
   DoCandleDeselect;
+
   if Assigned(FOnCandleSelect) then
   begin
-    P:=EnsurePoint(PressedPosition,GetCandlesRect,RectF(Elapsed,Candles.Area.Top,Elapsed+Duration,Candles.Area.Bottom));
+
+    P:=EnsurePoint(PressedPosition,GetCandlesRect,RectA(Elapsed,Elapsed+Duration,Candles.Area.ValueMin,Candles.Area.ValueMax));
     Candles.SelectedIndex:=Candles.Get(P);
     if Candles.SelectedIndex<>-1 then
     begin
@@ -163,7 +250,18 @@ begin
       FOnCandleSelect(Self,Candles.Data[Candles.SelectedIndex]);
       Exit;
     end;
+
+    P:=EnsurePoint(PressedPosition,GetVolumesRect,Volumes.Area);
+    Candles.SelectedIndex:=Volumes.Get(P);
+    if Candles.SelectedIndex<>-1 then
+    begin
+      Repaint;
+      FOnCandleSelect(Self,Candles.Data[Candles.SelectedIndex]);
+      Exit;
+    end;
+
   end;
+
 end;
 
 procedure TCandleChart.DoCandleDeselect;
@@ -188,13 +286,17 @@ end;
 
 procedure TCandleChart.Paint;
 var
-  R: TRectF;
+  R,V: TRectF;
   C: TCandle;
 begin
 
-  ElapsesMeasure.SetInterval(Elapsed,Duration);
+  ElapsesMeasure.SetRange(Elapsed,Duration);
+  ValueMeasure.SetRange(Self.Candles.Area.ValueMin,Self.Candles.Area.ValueMax);
+  Volumes.SetRange(Elapsed,Duration);
 
   var SaveState:=Canvas.SaveState;
+
+  // draw right measure
 
   R:=GetCandlesRect;
   R.Right:=LocalRect.Right;
@@ -204,22 +306,35 @@ begin
   if Length(Candles.Data)>0 then
     C:=Candles.Data[High(Candles.Data)];
 
-  ValueMeasure.SetLastValue(Candles.GetCandleRect(C,R,True),C.Close,FormatFloat('0.00####',C.Close));
+  ValueMeasure.SetLastValue(Candles.GetCandleRect(C,GetCandlesRect,True),C.Close,FormatFloat('0.########',C.Close));
 
   ValueMeasure.DrawTo(Canvas,R);
+
+  // draw lower measure
 
   R:=GetCandlesRect;
   R.Bottom:=LocalRect.Bottom;
   ElapsesMeasure.DrawTo(Canvas,R);
 
+  // draw volumes & candles
+
+  V:=GetVolumesRect;
   R:=GetCandlesRect;
-  Canvas.IntersectClipRect(R);
+
+  Canvas.IntersectClipRect(R+V);
+
+  Volumes.DrawTo(Canvas,V);
   Candles.DrawTo(Canvas,R);
 
   Canvas.RestoreState(SaveState);
 
-  Canvas.Stroke.Thickness:=1;
+  {$IFDEF DEBUG}
+
+  Canvas.Stroke.Thickness:=0.5;
   Canvas.DrawDashRect(R,0,0,AllCorners,1,claBlueviolet);
+  Canvas.DrawDashRect(V,0,0,AllCorners,1,claBlueviolet);
+
+  {$ENDIF}
 
 end;
 
@@ -290,6 +405,11 @@ end;
 function TCandleChart.GetCandleRect(const Candle: TCandle; BodyOnly: Boolean): TRectF;
 begin
   Result:=Candles.GetCandleRect(Candle,GetCandlesRect,BodyOnly);
+end;
+
+procedure TCandleChart.Deselect;
+begin
+  DoCandleDeselect;
 end;
 
 end.

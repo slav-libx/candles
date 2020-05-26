@@ -3,9 +3,21 @@ unit Frame.CandleSummary;
 interface
 
 uses
-  System.SysUtils, System.Types, System.UITypes, System.Classes, System.Variants,
-  FMX.Types, FMX.Graphics, FMX.Controls, FMX.Forms, FMX.Dialogs, FMX.StdCtrls,
-  FMX.Objects,FMX.Ani, FMX.Effects;
+  System.SysUtils,
+  System.Types,
+  System.UITypes,
+  System.Classes,
+  System.Variants,
+  System.Math,
+  FMX.Types,
+  FMX.Graphics,
+  FMX.Controls,
+  FMX.Forms,
+  FMX.Dialogs,
+  FMX.StdCtrls,
+  FMX.Objects,
+  FMX.Ani,
+  FMX.Effects;
 
 type
   TCandleSummaryFrame = class(TFrame)
@@ -21,11 +33,12 @@ type
     FloatAnimation1: TFloatAnimation;
     Text9: TText;
     Text10: TText;
-    procedure FrameClick(Sender: TObject);
+    Text11: TText;
     procedure FloatAnimation1Finish(Sender: TObject);
   private
   public
-    procedure SetValues(Open,Close,Max,Min,Volume: Extended);
+    procedure SetValues(const Title: string; DateTime: TDateTime;
+      Open,Close,Max,Min,Volume: Extended);
     procedure Show(Parent: TFmxObject; const TargetRect: TRectF);
     procedure Hide;
   end;
@@ -44,13 +57,13 @@ begin
   if Opacity=0 then Parent:=nil;
 end;
 
-procedure TCandleSummaryFrame.FrameClick(Sender: TObject);
+procedure TCandleSummaryFrame.SetValues(const Title: string; DateTime: TDateTime;
+  Open,Close,Max,Min,Volume: Extended);
 begin
-  Hide;
-end;
-
-procedure TCandleSummaryFrame.SetValues(Open,Close,Max,Min,Volume: Extended);
-begin
+  if Title='' then
+    Text11.Text:=DateTimeToStr(DateTime)
+  else
+    Text11.Text:=Title;
   Text8.Text:=AmountToStr(Open);
   Text5.Text:=AmountToStr(Close);
   Text6.Text:=AmountToStr(Max);
@@ -59,15 +72,29 @@ begin
 end;
 
 procedure TCandleSummaryFrame.Show(Parent: TFmxObject; const TargetRect: TRectF);
+var
+  P: TPointF;
+  ParentRect: TRectF;
 begin
+
   Opacity:=0;
   Visible:=False;
-  Self.Parent:=Parent;
-  Visible:=True;
-  if TargetRect.Top-Height>0 then
-    Self.Position.Point:=TargetRect.TopLeft-PointF(0,Height+0)
+
+  if Parent is TControl then
+    ParentRect:=TControl(Parent).LocalRect
   else
-    Self.Position.Point:=TargetRect.BottomRight-PointF(TargetRect.Width,-0);
+    ParentRect:=TargetRect;
+
+  if TargetRect.Top-Height>ParentRect.Top then
+    P:=PointF(TargetRect.Left,Max(ParentRect.Top,TargetRect.Top-Height))
+  else
+    P:=PointF(TargetRect.Left,Min(ParentRect.Bottom-Height,TargetRect.Bottom));
+
+  Self.Position.Point:=P;
+  Self.Parent:=Parent;
+
+  Visible:=True;
+
 end;
 
 procedure TCandleSummaryFrame.Hide;
